@@ -14,14 +14,18 @@ class GovPolicies:
         print("Lockdown")
     def limitedOpening(self, state):
         print("Limited Opening")
+    def doNothing(self, state):
+        print("Do nothing")
 
 class Government:
     policyList = {}
+    def __init__(self):
+        self.lockdown_number = 0
     # does nothing for now
     def choosePolicy(self, action):
         return None
     def getPolicies(self):
-        return 
+        return None
         
 
 class Covid:
@@ -29,5 +33,5 @@ class Covid:
     print('not implemented yet')
     def __init__(self, i):
         self.index = i
-        
+
 
