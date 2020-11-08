@@ -7,13 +7,10 @@ class World:
         self.currAgentInd = 0      # 0 is Gov, 1 is COVID
         self.iterNum = 0
         self.gameOver = False
-
         self.state = WorldState()
-
 
     def printStats( self ):
         pass
-
 
     def run( self, totalIter=1000, verbose=False ):
         """
@@ -23,11 +20,8 @@ class World:
 
             agent = self.agents[self.currAgentInd]
 
-            # Generate observation of the state
-            observation = agent.observationFunction(self.state)
-
             # Solicit actiion
-            agent_actions = agent.getAction(observation)
+            agent_actions = agent.getAction(self.state.deepCopy())
             
             # Update state
             self.state = self.state.generateSuccessor(self.currAgentInd, action)
