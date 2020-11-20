@@ -136,22 +136,16 @@ class COVIDRules:
             raise Exception("Illegal action " + str(action))
 
         cell = state.data.grids[agentIndex - 1]
-        if action == COVIDRules.Actions.INFECT:
+        if action == COVIDRules.Actions.INFECT and not cell.isLockedDown:
+            # we should consider nearby cells but weight them down based on distance (currently only consider dist <= 1)
+            left = 0 if agentIndex - 2 < 0 else \
+                                state.data.grids[agentIndex - 2].numCovidCases * state.data.grids[agentIndex - 2].susceptiblityCoef
+            right = 0 if agentIndex >= len(state.data.grids) else \
+                                state.data.grids[agentIndex].numCovidCases * state.data.grids[agentIndex].susceptiblityCoef
+            infectChance = cell.numCovidCases * cell.susceptiblityCoef + (0.1) * (left + right)
+            newCovidCases = sum(int(random.random() <= infectChance) for _ in range(cell.numHealthy()))
+            cell.numCovidCases = min(cell.numCovidCases + newCovidCases, cell.numPeople)
 
-            if cell.isLockedDown:
-                # Reduce spread of COVID by 100%
-                pass
-            else:
-                if cell.numCovidCases > 0:
-                    # COVID spreads normally (for now constant each time stemp)
-                    newNumCovidCases = cell.numCovidCases + int(cell.numHealthy() * \
-                            cell.susceptiblityCoef)
-                    cell.numCovidCases = newNumCovidCases if newNumCovidCases < \
-                            cell.numPeople else cell.numPeople
-                else:
-                    # Infect one person w/ prob susceptibilityCoef
-                    cell.numCovidCases = 1 if random.random() < cell.susceptiblityCoef else 0
-            
         ngrids = len(state.data.grids)
         if agentIndex == ngrids:
             state.data.level += 1
