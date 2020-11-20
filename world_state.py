@@ -1,4 +1,7 @@
+import random
 from world_state_data import WorldStateData
+
+random.seed(876)
 
 class WorldState:    
     def getLegalActions(self, agentIndex):
@@ -20,14 +23,15 @@ class WorldState:
         if self.isEnd(): raise Exception('Can\'t generate a successor of a terminal state.')
         
         # Copy current state
-        state = GameState(self)
+        state = WorldState(self)
 
         if agentIndex == 0:
             GovtRules.applyAction(state, action)
         else:
             COVIDRules.applyAction(state, action, agentIndex)
 
-        state.data.score += state.data._numInfected
+        #state.data.score += state.data._numInfected
+        state.data.score += state.data.numInfected
         return state
 
     def isEnd(self):
@@ -37,19 +41,22 @@ class WorldState:
     #             Helper methods:               #
     # You shouldn't need to call these directly #
     #############################################
-    def __init__(self, prevState = None, maxLevel = 10):
+    #def __init__(self, prevState = None, maxLevel = 10, numGrids):
+    def __init__(self, prevState = None, numGrids=100, maxLevel = 100):
         """
         Generates a new state by copying information from its predecessor.
         """
         if prevState is not None: # Initial state
-            self.data = GameStateData(prevState.data)
+            self.data = WorldStateData(prevState.data, prevState.numGrids)
+            self.numGrids = prevState.numGrids
             self.maxLevel = prevState.maxLevel
         else:
-            self.data = GameStateData()
+            self.data = WorldStateData(None, numGrids)
+            self.numGrids = numGrids
             self.maxLevel = maxLevel
 
     def deepCopy(self):
-        state = GameState( self )
+        state = WorldState (self)
         state.data = self.data.deepCopy()
         return state
 
@@ -84,9 +91,9 @@ class GovtRules:
         """
         ngrids = len(state.data.grids)
         lockdowns = [(GovtRules.Actions.LOCKDOWN, i) for i in range(ngrids) \
-                    if !state.data.grids[i].isLockdown and !state.data.grids[i].isInfected]
+                    if not state.data.grids[i].isLockedDown]
         reopen = [(GovtRules.Actions.REOPEN, i) for i in range(ngrids) \
-                if state.data.grids[i].isLockdown and !state.data.grids[i].isInfected]
+                if state.data.grids[i].isLockedDown]
         return lockdowns + reopen + [(GovtRules.Actions.IDLE, -1)]
     getLegalActions = staticmethod(getLegalActions)
 
@@ -98,10 +105,11 @@ class GovtRules:
         if action not in legal:
             raise Exception("Illegal action " + str(action))
         action_type, i = action
-        if action_type == COVIDRules.Actions.LOCKDOWN:
-            state.data.grids[i].isLockdown = True
-        elif action_type == COVIDRules.Actions.REOPEN:
-            state.data.grids[i].isLockdown = False
+        if action_type == GovtRules.Actions.LOCKDOWN:
+            state.data.grids[i].isLockedDown = True
+        elif action_type == GovtRules.Actions.REOPEN:
+            state.data.grids[i].isLockedDown = False
+
     applyAction = staticmethod(applyAction)
 
 class COVIDRules:
@@ -116,6 +124,7 @@ class COVIDRules:
         Returns a list of possible actions.
         """
         return [COVIDRules.Actions.INFECT, COVIDRules.Actions.IDLE]
+
     getLegalActions = staticmethod(getLegalActions)
 
     def applyAction(state, action, agentIndex):
@@ -125,14 +134,24 @@ class COVIDRules:
         legal = COVIDRules.getLegalActions(state, agentIndex)
         if action not in legal:
             raise Exception("Illegal action " + str(action))
+
         cell = state.data.grids[agentIndex - 1]
-        if action == COVIDRules.Actions.INFECT and cell.isLockdown:
-            cell.isInfected = True
-            state.data._numInfected += 1
+        if action == COVIDRules.Actions.INFECT and not cell.isLockedDown:
+            # we should consider nearby cells but weight them down based on distance (currently only consider dist <= 1)
+            left = 0 if agentIndex - 2 < 0 else \
+                                state.data.grids[agentIndex - 2].numCovidCases * state.data.grids[agentIndex - 2].susceptiblityCoef
+            right = 0 if agentIndex >= len(state.data.grids) else \
+                                state.data.grids[agentIndex].numCovidCases * state.data.grids[agentIndex].susceptiblityCoef
+            infectChance = cell.numCovidCases * cell.susceptiblityCoef + (0.1) * (left + right)
+            newCovidCases = sum(int(random.random() <= infectChance) for _ in range(cell.numHealthy()))
+            cell.numCovidCases = min(cell.numCovidCases + newCovidCases, cell.numPeople)
+
         ngrids = len(state.data.grids)
         if agentIndex == ngrids:
             state.data.level += 1
-        # if all cells were infected or reached max level
-        if state.data._numInfected == ngrids or state.data.level > state.maxLevel:
+
+        # if all people in cells were infected or reached max level
+        if state.data.allInfected() or state.data.level > state.maxLevel:
             state.data.isEnd = True
+
     applyAction = staticmethod(applyAction)

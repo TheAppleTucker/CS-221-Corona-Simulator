@@ -1,109 +1,75 @@
+import random
+import copy
+
+random.seed(876)
+
 class WorldStateData:
 
-    """
-    Stores a list of grids: one grid for each time step.
-    This grid stores:
-    -the number of people in each location (and the total number of people)
-    -the number of Covid cases in each location
-    -whether there is a lockDown in that time step
-    - whether the agent has won or lost or neither
-    - the agent's score so far
-    """
+    class GridData:
+        def __init__(self, numPeople, numInfected, susceptiblityCoef):
+            self.numPeople = numPeople
+            self.numCovidCases = numInfected
+            # chance of infection / num person infected
+            self.susceptiblityCoef = susceptiblityCoef
+            self.isLockedDown = False
 
-    def __init__(self,totalNumPeople, numRowsinWorld, numColsinWorld, numTimeSteps):
+        @classmethod
+        def createGrids(cls, numGrids):
+            initGridInfectedRatio = 0.1
+            maxGridsInfected = max(1, int(numGrids * initGridInfectedRatio))
+            gridsInfected = set(int(random.uniform(0, numGrids)) for _ in range(maxGridsInfected))
+            grids = []
+            for i in range(numGrids):
+                numPeople = random.randint(20, 50)
+                susceptiblityCoef = random.uniform(0.05, 0.01)
+                numInfected = 1 if i in gridsInfected else 0
+                grids.append(cls(numPeople, numInfected, susceptiblityCoef))
+            return grids
 
-        self.createArrayOfGrids(totalNumPeople, numRowsinWorld, numColsinWorld, numTimeSteps)
+        def toggleLockdown(self):
+            if self.isLockedDown:
+                self.isLockedDown = False
+            else:
+                self.isLockedDown = True
 
-    def createArrayOfGrids(self, totalNumPeople, numRows, numCols, totalTimeSteps):
-        for i in range(totalTimeSteps):
-            grid_i = GridData(totalNumPeople, 0, numRows, numCols)
-            self.grids.append(grid_i)
-
-
-class GridData:
-    """
-    Stores:
-    -the number of people in each location (and the total number of people)
-    -the number of Covid cases in each location
-    -whether there is a lockDown in that time step
-    - whether the agent has won or lost or neither
-    - the agent's score so far
-
-    We can also set the following:
-    -the score at the current time step
-    -whether the current time step indicates a win or loss state
-    """
-    def __init__(self, totalNumPeople, timeStep, rows, cols):
-        if(timeStep == 0):
-            self.isLockdown = False
-            self.numPeopleAlive = totalNumPeople
-            self.numCovidCases = 0
-            self.score = 0
-            self.grid = []
-            self.lockdownLocations = []
-            grid_row_list = []
-            for row in range(rows):
-                for col in range(cols):
-                    grid_row_list.append(LocationData(row,col))
-            self.has_won = False
-            self.has_lost = False
-            self.score = 0
-
+        def numHealthy(self):
+            healthy = self.numPeople - self.numCovidCases
+            return healthy if healthy > 0 else 0
+        
+    def __init__(self, prevData=None, numGrids=100):
+        if prevData is not None:
+            self.grids = copy.deepcopy(prevData.grids)
+            self.numGrids = prevData.numGrids
+            self.numInfected = prevData.numCovidCases()
+            self.level = prevData.level
+            self.score = prevData.score
+            self.population = prevData.population
+            self.isEnd = prevData.isEnd
         else:
-            for row in range(rows):
-                for col in range(cols):
-                    loc = LocationData(row, col)
-                    if(loc.isLockdown):
-                        self.isLockdown = True
-                        (self.lockdownLocations).append(loc)
-                    if(loc.isInfected):
-                        self.numCovidCases += loc.numPeopleInLoc
-                    self.numPeopleAlive += loc.numPeopleInLoc
+            self.grids = WorldStateData.GridData.createGrids(numGrids)
+            self.numGrids = numGrids
+            self.numInfected = self.numCovidCases()
+            self.level = 0
+            self.score = 0
+            self.population = self.totalPopulation()
+            self.isEnd = False
 
-    def setScore(self, newScore):
-        self.score = newScore
+    def totalPopulation(self):
+        total = sum([grid.numPeople if grid.numPeople else 0 for grid in self.grids])
+        return total
 
-    def setWon(self):
-        self.has_won = True
+    def numCovidCases(self):
+        total = sum([grid.numCovidCases if grid.numCovidCases else 0 for grid in self.grids])
+        return total
 
-    def setLost(self):
-        self.has_lost = True
+    def numLockdowns(self):
+        total = sum([1 if grid.isLockedDown else 0 for grid in self.grids])
+        return total
 
+    def numGridsInfected(self):
+        total = sum([1 if grid.numCovidCases > 0 else 0 for grid in self.grids])
+        return total
 
-class LocationData:
-    """
-    Stores data about a given location in the grid:
-    This includes:
-    - The number of people in the grid
-    - Whether there is a lockdown imposed in this location
-    - Whether the people in this grid are infected
-
-    We can also set the following:
-    -whether there is a lockdown in the location
-    -the number of people in each location
-    -whether the people in the location are cured of COVID
-    """
-
-    def __init__(self, timeStep, row, col):
-        self.pos = (row, col)
-        self.timeStep = timeStep
-        # I have taken DEFAULT_NUM_PEOPLE_IN_LOC = 2; we can put another number if we'd like
-        self.numPeopleInLoc = 2
-        self.isInfected = False
-        self.isLockdown = False
-
-    def setLockdown(self, timeStep):
-        self.isLockdown = True
-        self.timeStep = timeStep
-
-    def setNumPeopleInLoc(self, newNumPeople, timeStep):
-        self.numPeopleInLoc = newNumPeople
-        self.timeStep = timeStep
-
-    def setCured(self, timeStep):
-        self.isInfected = False
-        self.timeStep = timeStep
-
-
-
-
+    def allInfected(self):
+        return self.numCovidCases() == self.totalPopulation()
+         
