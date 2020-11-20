@@ -20,7 +20,7 @@ class WorldStateData:
             gridsInfected = set(int(random.uniform(0, numGrids)) for _ in range(maxGridsInfected))
             grids = []
             for i in range(numGrids):
-                numPeople = random.randint(20, 50)
+                numPeople = random.randint(50, 100)
                 susceptiblityCoef = random.uniform(0.05, 0.01)
                 numInfected = 1 if i in gridsInfected else 0
                 grids.append(cls(numPeople, numInfected, susceptiblityCoef))
